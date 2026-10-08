@@ -37,22 +37,24 @@
 - SSE 逐字返回，降低首字延迟
 
 ## 项目结构
+```
 src/main/java/com/rag/
-├── controller/ # 接口层
-│ ├── DocumentController.java
-│ ├── ChatController.java
-│ └── RagController.java
-├── service/ # 业务层
-│ ├── DocumentService.java # 文档切分
-│ ├── EmbeddingService.java # 向量化
-│ ├── VectorStoreService.java # 向量存储 + 检索
-│ └── ChatHistoryService.java # 对话历史
-├── entity/ # 实体
-├── config/ # 配置
-│ ├── RestTemplateConfig.java
-│ └── AiConfig.java
-└── utils/ # 工具
-└── DeepSeekClient.java
+├── controller/              # 接口层
+│   ├── DocumentController.java
+│   ├── ChatController.java
+│   └── RagController.java
+├── service/                 # 业务层
+│   ├── DocumentService.java       # 文档切分
+│   ├── EmbeddingService.java      # 向量化
+│   ├── VectorStoreService.java    # 向量存储 + 检索
+│   └── ChatHistoryService.java    # 对话历史
+├── entity/                  # 实体
+├── config/                  # 配置
+│   ├── RestTemplateConfig.java
+│   └── AiConfig.java
+└── utils/                   # 工具
+    └── DeepSeekClient.java
+```
 
 ## 接口说明
 
