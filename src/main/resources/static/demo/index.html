@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>企业 AI 知识库客服 · 公开演示</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --card: #fff;
+      --text: #1f2933;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --brand: #1d4ed8;
+      --brand-soft: #eff6ff;
+      --danger: #b45309;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 32px 20px 64px; }
+    h1 { font-size: 24px; margin: 0 0 8px; }
+    .sub { color: var(--muted); margin-bottom: 24px; font-size: 14px; }
+    .kbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+    .kb {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px;
+      cursor: pointer;
+      text-align: left;
+    }
+    .kb.active { border-color: var(--brand); background: var(--brand-soft); }
+    .kb b { display: block; margin-bottom: 6px; }
+    .kb span { color: var(--muted); font-size: 13px; }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .answer {
+      min-height: 120px;
+      white-space: pre-wrap;
+      line-height: 1.7;
+      margin-bottom: 16px;
+    }
+    .refs { border-top: 1px solid var(--line); padding-top: 12px; }
+    .refs h3 { margin: 0 0 8px; font-size: 14px; }
+    .ref {
+      background: #f9fafb;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      color: #374151;
+      margin-bottom: 8px;
+    }
+    .row { display: flex; gap: 8px; margin-top: 16px; }
+    textarea {
+      flex: 1;
+      min-height: 72px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font: inherit;
+    }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 0 16px;
+      cursor: pointer;
+      font: inherit;
+    }
+    .primary { background: var(--brand); color: #fff; }
+    .ghost { background: #fff; border: 1px solid var(--line); color: var(--text); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .status { margin-top: 10px; font-size: 13px; color: var(--muted); }
+    .status.warn { color: var(--danger); }
+    .toast {
+      margin-top: 12px;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      color: #92400e;
+      padding: 10px 12px;
+      border-radius: 8px;
+      display: none;
+    }
+    @media (max-width: 720px) {
+      .kbs { grid-template-columns: 1fr; }
+      .row { flex-direction: column; }
+      button { height: 40px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>企业 AI 知识库客服</h1>
+    <p class="sub">公开演示版 · 无需登录 · 仅可查询预置知识库 · 每个 IP 每天 20 次 · 答案仅依据资料，未提及请转人工</p>
+    <div class="kbs" id="kbs"></div>
+    <div class="panel">
+      <div class="answer" id="answer">请选择知识库后提问。</div>
+      <div class="refs" id="refsWrap" hidden>
+        <h3>引用片段</h3>
+        <div id="refs"></div>
+      </div>
+      <div class="row">
+        <textarea id="question" maxlength="500" placeholder="请输入问题，例如：无理由退货几天内可以申请？"></textarea>
+        <button class="primary" id="askBtn" type="button">发送</button>
+        <button class="ghost" id="handoffBtn" type="button">转人工</button>
+      </div>
+      <div class="status" id="status"></div>
+      <div class="toast" id="toast"></div>
+    </div>
+  </div>
+  <script>
+    const state = { kbId: "", remaining: null, asking: false };
+
+    async function loadKbs() {
+      const res = await fetch("/api/demo/knowledge-bases");
+      const data = await res.json();
+      const box = document.getElementById("kbs");
+      box.innerHTML = "";
+      data.items.forEach((kb, i) => {
+        const btn = document.createElement("button");
+        btn.className = "kb" + (i === 0 ? " active" : "");
+        btn.type = "button";
+        btn.innerHTML = "<b>" + kb.name + "</b><span>" + kb.description + "</span>";
+        btn.onclick = () => {
+          state.kbId = kb.id;
+          document.querySelectorAll(".kb").forEach(el => el.classList.remove("active"));
+          btn.classList.add("active");
+          document.getElementById("answer").textContent = "当前知识库：" + kb.name + "。请输入问题。";
+          document.getElementById("refsWrap").hidden = true;
+        };
+        box.appendChild(btn);
+        if (i === 0) state.kbId = kb.id;
+      });
+    }
+
+    function showToast(text) {
+      const el = document.getElementById("toast");
+      el.style.display = "block";
+      el.textContent = text;
+    }
+
+    function setBusy(busy) {
+      state.asking = busy;
+      document.getElementById("askBtn").disabled = busy;
+      document.getElementById("question").disabled = busy;
+    }
+
+    async function ask() {
+      const question = document.getElementById("question").value.trim();
+      if (!state.kbId) return showToast("请选择知识库");
+      if (!question) return showToast("请输入问题");
+      setBusy(true);
+      document.getElementById("toast").style.display = "none";
+      document.getElementById("answer").textContent = "";
+      document.getElementById("refs").innerHTML = "";
+      document.getElementById("refsWrap").hidden = true;
+      document.getElementById("status").textContent = "正在检索资料…";
+
+      try {
+        const res = await fetch("/api/demo/ask/stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
+          body: JSON.stringify({ kbId: state.kbId, question })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ message: "当前咨询较多，请稍后再试或联系人工" }));
+          document.getElementById("answer").textContent = err.message || "当前咨询较多，请稍后再试或联系人工";
+          document.getElementById("status").className = "status warn";
+          document.getElementById("status").textContent = err.message || "";
+          return;
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        let eventName = "message";
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n");
+          buffer = parts.pop();
+          for (const line of parts) {
+            if (line.startsWith("event:")) {
+              eventName = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+              handleEvent(eventName, line.slice(5).trim());
+              eventName = "message";
+            }
+          }
+        }
+      } catch (e) {
+        document.getElementById("answer").textContent = "当前咨询较多，请稍后再试或联系人工";
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function handleEvent(eventName, data) {
+      if (eventName === "meta") {
+        const meta = JSON.parse(data);
+        state.remaining = meta.remaining;
+        document.getElementById("status").className = "status";
+        document.getElementById("status").textContent = "今日剩余次数：" + meta.remaining;
+      } else if (eventName === "refs") {
+        const refs = JSON.parse(data);
+        const box = document.getElementById("refs");
+        box.innerHTML = "";
+        refs.forEach((ref, i) => {
+          const div = document.createElement("div");
+          div.className = "ref";
+          div.textContent = (i + 1) + ". " + ref.text;
+          box.appendChild(div);
+        });
+        document.getElementById("refsWrap").hidden = refs.length === 0;
+      } else if (eventName === "token") {
+        document.getElementById("answer").textContent += data;
+      } else if (eventName === "error") {
+        const payload = JSON.parse(data);
+        document.getElementById("answer").textContent = payload.message;
+        document.getElementById("status").className = "status warn";
+      } else if (eventName === "done") {
+        document.getElementById("status").className = "status";
+        const remain = state.remaining == null ? "" : " · 今日剩余 " + state.remaining + " 次";
+        document.getElementById("status").textContent = "回答完成" + remain;
+      }
+    }
+
+    async function handoff() {
+      if (!state.kbId) return showToast("请选择知识库");
+      const question = document.getElementById("question").value.trim();
+      const res = await fetch("/api/demo/handoff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kbId: state.kbId, question })
+      });
+      const data = await res.json();
+      showToast(data.message || "已登记转人工");
+    }
+
+    document.getElementById("askBtn").onclick = ask;
+    document.getElementById("handoffBtn").onclick = handoff;
+    loadKbs().catch(() => showToast("演示服务暂不可用，请稍后再试"));
+  </script>
+</body>
+</html>

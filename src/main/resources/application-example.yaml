@@ -1,0 +1,29 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: rag-knowledge-base
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+# 复制本文件为 application.yaml 仅用于本地覆盖非敏感项。
+# DEEPSEEK_API_KEY、DASHSCOPE_API_KEY 必须通过环境变量注入，不要把真实 Key 写进文件。
+deepseek:
+  api-key: ${DEEPSEEK_API_KEY:}
+  base-url: https://api.deepseek.com
+  model: deepseek-chat
+  timeout-ms: 30000
+
+dashscope:
+  api-key: ${DASHSCOPE_API_KEY:}
+  embedding-url: https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding
+  embedding-model: text-embedding-v3
+
+demo:
+  daily-limit: 20
+  similarity-threshold: 0.32
+  admin-api-enabled: false
